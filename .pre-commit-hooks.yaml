@@ -1,0 +1,18 @@
+---
+- id: check-kustomize-build-dependencies
+  name: Check kustomize targets for build dependencies
+  description: Check kustomize targets for build dependencies
+  entry: bin/kustomize-build
+  language: script
+  always_run: true
+  pass_filenames: false
+  verbose: false
+
+- id: check-kustomize-build-dependencies-docker
+  name: Check kustomize targets for build dependencies
+  description: Check kustomize targets for build dependencies in docker container
+  entry: kustomize-build
+  language: docker
+  always_run: true
+  pass_filenames: false
+  verbose: false
