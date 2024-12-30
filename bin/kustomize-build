@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+
+source_dir="${1:-overlays}"
+filenames="${2:-kustomization.yaml}"
+
+printf "Find directory: %s\n" "$source_dir"
+printf "Filenames: %s\n\n" "$filenames"
+
+find "$source_dir" -type f -name "$filenames" -exec sh -c '
+    printf "%s\n" "$1"
+    kustomize build "$(dirname "$1")" > /dev/null
+' sh {} \;
