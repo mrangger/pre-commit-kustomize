@@ -1,12 +1,70 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
+set -e # Exit on error
+set -u # Exit on unset variables
+
+# Display help if requested
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    cat <<EOF
+Usage: $0 [directory] [recursive]
+  directory   (optional) Directory in which to search for Kustomization files (default: overlays)
+  recursive   (optional) "true" or "false" (default: true). When set to "false", find is called with "--depth 0".
+EOF
+    exit 0
+fi
+
+# Check if kustomize is available
+if ! command -v kustomize >/dev/null 2>&1; then
+    printf "\033[0;31m❌ kustomize command not found. Please install kustomize.\033[0m\n" >&2
+    exit 1
+fi
+
+# Set parameters
 source_dir="${1:-overlays}"
-filenames="${2:-kustomization.yaml}"
+recursive="${2:-true}"
 
-printf "Find directory: %s\n" "$source_dir"
-printf "Filenames: %s\n\n" "$filenames"
+printf "🔍 Searching in directory: %s (recursive: %s)\n" "$source_dir" "$recursive"
 
-find "$source_dir" -type f -name "$filenames" -exec sh -c '
-    for n; do
-    kustomize build "$(dirname "$n")" > /dev/null || (printf "\nError in File: %s\n\n" "$n"; exit 1;);
-    done' sh {} \;
+# Check if the directory exists
+if [ ! -d "$source_dir" ]; then
+    printf "\033[0;31m❌ Directory '%s' does not exist.\033[0m\n" "$source_dir" >&2
+    exit 1
+fi
+
+# Validate the recursive parameter
+if [ "$recursive" != "true" ] && [ "$recursive" != "false" ]; then
+    printf "\033[0;31m❌ Invalid value for recursive: %s. Please use 'true' or 'false'.\033[0m\n" "$recursive" >&2
+    exit 1
+fi
+
+# Function to validate a Kustomization file
+validate_kustomization() {
+    local kustomize_file dir
+    kustomize_file="$1"
+    dir=$(dirname "$kustomize_file")
+    if kustomize build "$dir" >/dev/null 2>&1; then
+        printf "✅ %s\n" "$kustomize_file"
+    else
+        printf "\n\033[0;31m❌ Error\033[0m in file: %s\n" "$kustomize_file" >&2
+        return 1
+    fi
+}
+
+# Search and validate Kustomization files
+if [ "$recursive" = "false" ]; then
+    find "$source_dir" -maxdepth 0 -type f \( \
+        -name "kustomization.yaml" -o \
+        -name "kustomization.yml" -o \
+        -name "Kustomization" \
+        \) | while IFS= read -r file; do
+        validate_kustomization "$file" || exit 1
+    done
+else
+    find "$source_dir" -type f \( \
+        -name "kustomization.yaml" -o \
+        -name "kustomization.yml" -o \
+        -name "Kustomization" \
+        \) | while IFS= read -r file; do
+        validate_kustomization "$file" || exit 1
+    done
+fi
