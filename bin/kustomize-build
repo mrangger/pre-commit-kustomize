@@ -52,7 +52,7 @@ validate_kustomization() {
 
 # Search and validate Kustomization files
 if [ "$recursive" = "false" ]; then
-    find "$source_dir" -maxdepth 0 -type f \( \
+    find "$source_dir" -maxdepth 1 -type f \( \
         -name "kustomization.yaml" -o \
         -name "kustomization.yml" -o \
         -name "Kustomization" \
