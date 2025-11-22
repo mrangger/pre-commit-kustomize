@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+
+set -e # Exit on error
+set -u # Exit on unset variables
+
+# Parse arguments
+preferred_extension="yaml"
+check_only=false
+files_to_check=()
+
+for arg in "$@"; do
+    if [ "$arg" = "--yml" ]; then
+        preferred_extension="yml"
+    elif [ "$arg" = "--yaml" ]; then
+        preferred_extension="yaml"
+    elif [ "$arg" = "--check-only" ]; then
+        check_only=true
+    elif [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
+        cat <<EOF
+Usage: $0 [OPTIONS] [files...]
+  files...        YAML files to check (passed by pre-commit)
+
+OPTIONS:
+  --yaml          Prefer .yaml extension (default)
+  --yml           Prefer .yml extension
+  --check-only    Only check for inconsistencies, don't rename files
+  -h, --help      Display this help message
+
+This hook ensures all YAML files use a consistent file extension.
+By default, it renames .yml files to .yaml.
+EOF
+        exit 0
+    else
+        # Collect files to check
+        files_to_check+=("$arg")
+    fi
+done
+
+# Determine the opposite extension
+if [ "$preferred_extension" = "yaml" ]; then
+    opposite_extension="yml"
+else
+    opposite_extension="yaml"
+fi
+
+# Filter files that need renaming
+files_to_rename=()
+for file in "${files_to_check[@]}"; do
+    # Check if file exists and has the opposite extension
+    if [ -f "$file" ] && [[ "$file" == *.${opposite_extension} ]]; then
+        files_to_rename+=("$file")
+    fi
+done
+
+# If no files need renaming, exit successfully
+if [ ${#files_to_rename[@]} -eq 0 ]; then
+    exit 0
+fi
+
+# Report findings
+printf "\033[0;33m⚠️  Found %d file(s) with .%s extension:\033[0m\n" "${#files_to_rename[@]}" "$opposite_extension" >&2
+for file in "${files_to_rename[@]}"; do
+    printf "  - %s\n" "$file" >&2
+done
+
+# If check-only mode, exit with error
+if [ "$check_only" = true ]; then
+    printf "\n\033[0;31m❌ YAML file extensions are inconsistent. Use --%s for all files.\033[0m\n" "$preferred_extension" >&2
+    exit 1
+fi
+
+# Rename files
+printf "\n\033[0;34mRenaming files to .%s extension...\033[0m\n" "$preferred_extension" >&2
+renamed_count=0
+failed_count=0
+
+for file in "${files_to_rename[@]}"; do
+    # Generate new filename
+    new_file="${file%."${opposite_extension}"}.${preferred_extension}"
+
+    # Check if target file already exists
+    if [ -f "$new_file" ]; then
+        printf "\033[0;31m❌ Cannot rename '%s' - target file already exists: %s\033[0m\n" "$file" "$new_file" >&2
+        ((failed_count++))
+        continue
+    fi
+
+    # Rename the file
+    if mv "$file" "$new_file"; then
+        printf "\033[0;32m✅ Renamed: %s → %s\033[0m\n" "$file" "$new_file" >&2
+        ((renamed_count++))
+
+        # Stage the renamed file in git
+        if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+            git add "$new_file" 2>/dev/null || true
+        fi
+    else
+        printf "\033[0;31m❌ Failed to rename: %s\033[0m\n" "$file" >&2
+        ((failed_count++))
+    fi
+done
+
+# Summary
+printf "\n\033[0;34m📊 Summary:\033[0m\n" >&2
+printf "  Renamed: %d\n" "$renamed_count" >&2
+if [ $failed_count -gt 0 ]; then
+    printf "  \033[0;31mFailed: %d\033[0m\n" "$failed_count" >&2
+    exit 1
+fi
+
+printf "\n\033[0;32m✅ All checked YAML files now use the .%s extension.\033[0m\n" "$preferred_extension" >&2
+exit 0

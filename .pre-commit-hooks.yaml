@@ -16,3 +16,12 @@
   always_run: true
   pass_filenames: false
   verbose: false
+
+- id: check-yaml-extension
+  name: Check YAML file extensions are consistent
+  description: Ensure all YAML files use consistent file extension (.yaml or .yml)
+  entry: bin/check-yaml-extension
+  language: script
+  files: \.(yaml|yml)$
+  pass_filenames: true
+  verbose: false

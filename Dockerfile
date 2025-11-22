@@ -3,6 +3,7 @@ RUN apk add --no-cache git kustomize helm openssh
 
 # Copy only necessary files and set permissions
 COPY --chmod=755 ./bin/kustomize-build /bin/kustomize-build
+COPY --chmod=755 ./bin/check-yaml-extension /bin/check-yaml-extension
 
 # Use a non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

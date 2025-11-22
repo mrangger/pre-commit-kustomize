@@ -66,6 +66,69 @@ The following configuration uses `check-kustomize-build-dependencies` to validat
       args: ["overlays"]
 ```
 
+```
+
+---
+
+## 📝 YAML Extension Consistency Hook
+
+The `check-yaml-extension` hook ensures all YAML files in your commits use a consistent file extension. It only checks files that are being committed, making it fast and efficient.
+
+### Configuration
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.8
+  hooks:
+    - id: check-yaml-extension
+```
+
+### Options
+
+| Argument | Description | Default |
+|:---------|:------------|--------:|
+| **--yaml** | Prefer `.yaml` extension | enabled |
+| **--yml** | Prefer `.yml` extension | disabled |
+| **--check-only** | Only check, don't rename files | disabled |
+
+### Examples
+
+**Enforce .yaml extension (default):**
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.8
+  hooks:
+    - id: check-yaml-extension
+```
+
+**Enforce .yml extension:**
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.8
+  hooks:
+    - id: check-yaml-extension
+      args: ["--yml"]
+```
+
+**Check only (don't auto-rename):**
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.8
+  hooks:
+    - id: check-yaml-extension
+      args: ["--check-only"]
+```
+
+> [!NOTE]
+> This hook automatically renames files and stages them in git. When a `.yml` file is renamed to `.yaml`, the renamed file is automatically added to your commit.
+
+---
+
+## 🔧 Kustomize Build Validation
+
 You can define multiple instances of the hook to validate different overlays:
 
 ```yaml
