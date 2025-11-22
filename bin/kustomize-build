@@ -3,15 +3,30 @@
 set -e # Exit on error
 set -u # Exit on unset variables
 
-# Display help if requested
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    cat <<EOF
-Usage: $0 [directory] [recursive]
-  directory   (optional) Directory in which to search for Kustomization files (default: overlays)
-  recursive   (optional) "true" or "false" (default: true). When set to "false", find is called with "--depth 0".
+# Parse arguments to detect flags
+enable_helm=false
+positional_args=()
+
+for arg in "$@"; do
+    if [ "$arg" = "--enable-helm" ]; then
+        enable_helm=true
+    elif [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
+        cat <<EOF
+Usage: $0 [OPTIONS] [directory] [recursive]
+  directory       (optional) Directory in which to search for Kustomization files (default: overlays)
+  recursive       (optional) "true", "false", or "--no-recurse" (default: true).
+                  When set to "false" or "--no-recurse", find is called with "--maxdepth 1".
+
+OPTIONS:
+  --enable-helm    Enable Helm chart inflation during kustomize build (requires helm to be installed)
+  --no-recurse     Disable recursive search (alternative to "false")
+  -h, --help       Display this help message
 EOF
-    exit 0
-fi
+        exit 0
+    else
+        positional_args+=("$arg")
+    fi
+done
 
 # Check if kustomize is available
 if ! command -v kustomize >/dev/null 2>&1; then
@@ -19,11 +34,24 @@ if ! command -v kustomize >/dev/null 2>&1; then
     exit 1
 fi
 
-# Set parameters
-source_dir="${1:-overlays}"
-recursive="${2:-true}"
+# Set parameters from positional arguments
+source_dir="${positional_args[0]:-overlays}"
+recursive="${positional_args[1]:-true}"
 
-printf "🔍 Searching in directory: %s (recursive: %s)\n" "$source_dir" "$recursive"
+# Normalize recursive parameter - accept --no-recurse as "false"
+if [ "$recursive" = "--no-recurse" ]; then
+    recursive="false"
+fi
+
+# Check if helm is available when --enable-helm is set
+if [ "$enable_helm" = true ]; then
+    if ! command -v helm >/dev/null 2>&1; then
+        printf "\033[0;31m❌ helm command not found. Please install helm or remove --enable-helm flag.\033[0m\n" >&2
+        exit 1
+    fi
+fi
+
+printf "🔍 Searching in directory: %s (recursive: %s, helm: %s)\n" "$source_dir" "$recursive" "$enable_helm"
 
 # Check if the directory exists
 if [ ! -d "$source_dir" ]; then
@@ -39,10 +67,18 @@ fi
 
 # Function to validate a Kustomization file
 validate_kustomization() {
-    local kustomize_file dir
+    local kustomize_file dir kustomize_cmd
     kustomize_file="$1"
     dir=$(dirname "$kustomize_file")
-    if kustomize build "$dir" >/dev/null 2>&1; then
+
+    # Build kustomize command with optional --enable-helm flag
+    if [ "$enable_helm" = true ]; then
+        kustomize_cmd="kustomize build --enable-helm"
+    else
+        kustomize_cmd="kustomize build"
+    fi
+
+    if $kustomize_cmd "$dir" >/dev/null 2>&1; then
         printf "✅ %s\n" "$kustomize_file"
     else
         printf "\n\033[0;31m❌ Error\033[0m in file: %s\n" "$kustomize_file" >&2

@@ -50,7 +50,9 @@ The `check-kustomize-build-dependencies` hook accepts the following arguments:
 | Argument | Description | Default |
 |:------------- |:------------- | -----:|
 | **Path to the overlay:** | The directory containing the `kustomization.yaml` file (e.g., `overlays/development`) | `overlays` |
-| **recursive** |By default, the hook recursively checks all files under the specified path.|true |
+| **recursive** |By default, the hook recursively checks all files under the specified path. Can be set to `"true"`, `"false"`, or `"--no-recurse"`.|true |
+| **--enable-helm** | Enable Helm chart inflation during kustomize build (requires helm to be installed). Can be used as a flag anywhere in arguments. | disabled |
+| **--no-recurse** | Alternative to `"false"` for disabling recursive search. Can be used as the recursive parameter value. | - |
 
 ### Example pre-commit config
 
@@ -82,6 +84,53 @@ repos:
         args: ["overlays/production"]
 ```
 
+### Using with Helm Charts
+
+If your Kustomize configurations use Helm charts (via `helmCharts` in `kustomization.yaml`), you need to enable Helm support:
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.4
+  hooks:
+    - id: check-kustomize-build-dependencies
+      args: ["overlays", "--enable-helm"]
+```
+
+Or explicitly with recursive enabled:
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.4
+  hooks:
+    - id: check-kustomize-build-dependencies
+      args: ["overlays", "true", "--enable-helm"]
+```
+
+### Disabling Recursive Search
+
+To disable recursive search (only check the top-level directory), you can use:
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.4
+  hooks:
+    - id: check-kustomize-build-dependencies
+      args: ["overlays", "false"]
+```
+
+Or use the more explicit flag syntax:
+
+```yaml
+- repo: https://github.com/mrangger/pre-commit-kustomize
+  rev: v0.0.4
+  hooks:
+    - id: check-kustomize-build-dependencies
+      args: ["overlays", "--no-recurse"]
+```
+
+> [!NOTE]
+> The `--no-recurse` flag is an alternative to `"false"` for the recursive parameter, making the configuration more explicit and consistent with the `--enable-helm` flag style.
+
 ### 🐳 Using with Docker
 
 The following configuration uses `check-kustomize-build-dependencies-docker` to validate kustomize files for build dependencies. This hook runs inside a Docker container and does not requiere kustomize to be installed locally.
@@ -97,7 +146,13 @@ The following configuration uses `check-kustomize-build-dependencies-docker` to 
 Run manually:
 
 ```sh
-docker run --rm -v $(pwd):/src pre-commit-kustomize check-kustomize-build-dependencies overlays
+docker run --rm -v $(pwd):/src pre-commit-kustomize kustomize-build overlays
+```
+
+With Helm support:
+
+```sh
+docker run --rm -v $(pwd):/src pre-commit-kustomize kustomize-build overlays true --enable-helm
 ```
 
 ## ❓ Troubleshooting
@@ -115,6 +170,13 @@ docker run --rm -v $(pwd):/src pre-commit-kustomize check-kustomize-build-depend
 - Missing Dependencies
 
   Ensure that both `pre-commit` and `kustomize` are installed and accessible in your system's `PATH` if you're not using the Docker-based hook.
+
+- Helm Chart Errors
+
+  If you're using Helm charts in your Kustomize configurations, make sure to:
+  - Add the `--enable-helm` flag to your hook arguments
+  - Ensure `helm` is installed and accessible in your `PATH`
+  - Verify your Helm chart references are correct in `kustomization.yaml`
 
 ## 🤝 Contributing
 
