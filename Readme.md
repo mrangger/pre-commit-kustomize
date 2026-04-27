@@ -66,8 +66,6 @@ The following configuration uses `check-kustomize-build-dependencies` to validat
       args: ["overlays"]
 ```
 
-```
-
 ---
 
 ## 📝 YAML Extension Consistency Hook
@@ -123,7 +121,7 @@ The `check-yaml-extension` hook ensures all YAML files in your commits use a con
 ```
 
 > [!NOTE]
-> This hook automatically renames files and stages them in git. When a `.yml` file is renamed to `.yaml`, the renamed file is automatically added to your commit.
+> This hook automatically renames files and stages the new path in git. Depending on your Git state, you may still need to stage the removal of the old path before committing.
 
 ---
 
