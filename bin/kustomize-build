@@ -5,11 +5,14 @@ set -u # Exit on unset variables
 
 # Parse arguments to detect flags
 enable_helm=false
+helm_kube_version=""
 positional_args=()
 
 for arg in "$@"; do
     if [ "$arg" = "--enable-helm" ]; then
         enable_helm=true
+    elif [[ "$arg" == --helm-kube-version=* ]]; then
+        helm_kube_version="${arg#--helm-kube-version=}"
     elif [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
         cat <<EOF
 Usage: $0 [OPTIONS] [directory] [recursive]
@@ -18,9 +21,10 @@ Usage: $0 [OPTIONS] [directory] [recursive]
                   When set to "false" or "--no-recurse", find is called with "--maxdepth 1".
 
 OPTIONS:
-  --enable-helm    Enable Helm chart inflation during kustomize build (requires helm to be installed)
-  --no-recurse     Disable recursive search (alternative to "false")
-  -h, --help       Display this help message
+  --enable-helm              Enable Helm chart inflation during kustomize build (requires helm to be installed)
+  --helm-kube-version=X.Y.Z  Override Kubernetes version passed to helm template (e.g. 1.35.0)
+  --no-recurse               Disable recursive search (alternative to "false")
+  -h, --help                 Display this help message
 EOF
         exit 0
     else
@@ -76,6 +80,7 @@ cache_key_for() {
     local dir="$1"
     {
         echo "$KUSTOMIZE_VERSION"
+        echo "helm-kube-version=${helm_kube_version}"
         find "$dir" -type f | sort | xargs sha256sum 2>/dev/null
     } |
         sha256sum | cut -c1-16
@@ -88,11 +93,14 @@ validate_kustomization() {
     kustomize_file="$1"
     dir=$(dirname "$kustomize_file")
 
-    # Build kustomize command with optional --enable-helm flag
+    # Build kustomize command with optional flags
     if [ "$enable_helm" = true ]; then
         kustomize_cmd=(kustomize build --enable-helm)
     else
         kustomize_cmd=(kustomize build)
+    fi
+    if [ -n "$helm_kube_version" ]; then
+        kustomize_cmd+=(--helm-kube-version="$helm_kube_version")
     fi
 
     # Return early if this exact directory content was already validated.
