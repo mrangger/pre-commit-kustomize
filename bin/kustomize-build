@@ -65,20 +65,52 @@ if [ "$recursive" != "true" ] && [ "$recursive" != "false" ]; then
     exit 1
 fi
 
+# Persistent build cache keyed by kustomize version + all file contents in the
+# kustomization directory. Avoids re-fetching remote resources (e.g. GitHub URLs)
+# on every commit when nothing has changed.
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/pre-commit-kustomize"
+mkdir -p "$CACHE_DIR"
+KUSTOMIZE_VERSION="$(kustomize version 2>/dev/null || echo unknown)"
+
+cache_key_for() {
+    local dir="$1"
+    {
+        echo "$KUSTOMIZE_VERSION"
+        find "$dir" -type f | sort | xargs sha256sum 2>/dev/null
+    } |
+        sha256sum | cut -c1-16
+}
+
 # Function to validate a Kustomization file
 validate_kustomization() {
-    local kustomize_file dir kustomize_cmd
+    local kustomize_file dir cache_key cache_file
+    local -a kustomize_cmd
     kustomize_file="$1"
     dir=$(dirname "$kustomize_file")
 
     # Build kustomize command with optional --enable-helm flag
     if [ "$enable_helm" = true ]; then
-        kustomize_cmd="kustomize build --enable-helm"
+        kustomize_cmd=(kustomize build --enable-helm)
     else
-        kustomize_cmd="kustomize build"
+        kustomize_cmd=(kustomize build)
     fi
 
-    if $kustomize_cmd "$dir" >/dev/null 2>&1; then
+    # Return early if this exact directory content was already validated.
+    cache_key="$(cache_key_for "$dir")"
+    cache_file="$CACHE_DIR/${cache_key}.ok"
+    if [[ -f "$cache_file" ]]; then
+        printf "✅ %s (cached)\n" "$kustomize_file"
+        return 0
+    fi
+
+    # Unset git environment variables so kustomize can git-clone remote resources
+    # into a fresh temp dir without colliding with the current repo's remotes.
+    # git sets GIT_DIR (and friends) during commit hooks, which causes kustomize
+    # to run git operations inside the current repo instead of a temp clone dir,
+    # resulting in "remote origin already exists" errors.
+    if env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE \
+        "${kustomize_cmd[@]}" "$dir" >/dev/null 2>&1; then
+        touch "$cache_file"
         printf "✅ %s\n" "$kustomize_file"
     else
         printf "\n\033[0;31m❌ Error\033[0m in file: %s\n" "$kustomize_file" >&2
